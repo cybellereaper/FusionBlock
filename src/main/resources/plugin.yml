@@ -1,0 +1,7 @@
+name: FusionBlock
+version: '1.0-SNAPSHOT'
+main: com.github.cybellereaper.fusionBlock.FusionBlock
+api-version: "1.21"
+description: A plugin to test ModelEngine models
+softdepend:
+  - ModelEngine
