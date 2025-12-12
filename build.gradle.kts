@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.10"
+    java
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
@@ -20,12 +20,17 @@ repositories {
 dependencies {
     compileOnly("com.ticxo.modelengine:ModelEngine:R4.0.7")
     compileOnly("org.spigotmc:spigot-api:1.21.4-R0.1-SNAPSHOT")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.mockito:mockito-inline:5.2.0")
+    testImplementation("org.spigotmc:spigot-api:1.21.4-R0.1-SNAPSHOT")
 }
 
-val targetJavaVersion = 21
-kotlin {
-    jvmToolchain(targetJavaVersion)
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 tasks.build {
@@ -33,11 +38,14 @@ tasks.build {
 }
 
 tasks.processResources {
-
     val props = mapOf("version" to version)
     inputs.properties(props)
     filteringCharset = "UTF-8"
     filesMatching("plugin.yml") {
         expand(props)
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
