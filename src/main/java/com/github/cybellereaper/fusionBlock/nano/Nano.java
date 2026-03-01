@@ -1,5 +1,9 @@
 package com.github.cybellereaper.fusionBlock.nano;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -17,6 +21,8 @@ public class Nano {
     private boolean summoned = false;
     private long powerCooldownCycle = 0L;
     private double powerBoosted = 0.0;
+    private NanoPower selectedPower;
+    private Instant gumballBoostExpiresAt;
 
     public Nano() {
     }
@@ -148,6 +154,73 @@ public class Nano {
         this.powerBoosted = powerBoosted;
     }
 
+    public NanoPower getSelectedPower() {
+        return selectedPower;
+    }
+
+    public void setSelectedPower(NanoPower selectedPower) {
+        this.selectedPower = selectedPower;
+    }
+
+    public Instant getGumballBoostExpiresAt() {
+        return gumballBoostExpiresAt;
+    }
+
+    /**
+     * Acquires this nano by selecting one of three offered powers.
+     */
+    public void acquireWithPowerSelection(List<NanoPower> offeredPowers, int selectedIndex) {
+        Objects.requireNonNull(offeredPowers, "offeredPowers");
+        if (offeredPowers.size() != 3) {
+            throw new IllegalArgumentException("Exactly three powers must be offered");
+        }
+        if (selectedIndex < 0 || selectedIndex >= offeredPowers.size()) {
+            throw new IllegalArgumentException("selectedIndex out of range");
+        }
+        setSelectedPower(offeredPowers.get(selectedIndex));
+    }
+
+    /**
+     * Summons this nano if it has remaining stamina.
+     */
+    public boolean summon() {
+        if (stamina <= MIN_STAMINA) {
+            summoned = false;
+            return false;
+        }
+        summoned = true;
+        return true;
+    }
+
+    public void unsummon() {
+        summoned = false;
+    }
+
+    /**
+     * Applies baseline summon drain and passive power drain for one tick.
+     */
+    public void tickSummonedDrain(double baseDrainPerTick) {
+        if (!summoned || baseDrainPerTick < 0.0) {
+            return;
+        }
+
+        double drain = baseDrainPerTick;
+        if (selectedPower != null) {
+            drain += selectedPower.drainForTick();
+        }
+        damageStamina(drain);
+    }
+
+    /**
+     * Triggers the selected power and drains stamina if the power is triggered.
+     */
+    public void triggerSelectedPower() {
+        if (!summoned || selectedPower == null) {
+            return;
+        }
+        damageStamina(selectedPower.drainForTrigger());
+    }
+
     /**
      * Increases stamina by the requested amount, clamped to the max.
      */
@@ -173,6 +246,24 @@ public class Nano {
         if (stamina <= MIN_STAMINA) {
             summoned = false;
         }
+    }
+
+    /**
+     * Applies a type-matching gumball boost for 10 minutes.
+     */
+    public void applyGumballBoost(NanoEffectType gumballType, Clock clock) {
+        Objects.requireNonNull(gumballType, "gumballType");
+        Objects.requireNonNull(clock, "clock");
+        if (gumballType != type) {
+            throw new IllegalArgumentException("Gumball type must match nano type");
+        }
+
+        gumballBoostExpiresAt = Instant.now(clock).plus(Duration.ofMinutes(10));
+    }
+
+    public boolean hasActiveGumballBoost(Clock clock) {
+        Objects.requireNonNull(clock, "clock");
+        return gumballBoostExpiresAt != null && Instant.now(clock).isBefore(gumballBoostExpiresAt);
     }
 
     private double clampStamina(double value) {
