@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Maintains a player's Nano Book, equipped slots, summon lifecycle and power usage.
@@ -37,6 +38,9 @@ public class NanoRosterService {
         if (powerChoices.size() != 3) {
             throw new IllegalArgumentException("A Nano must present exactly three powers on acquisition.");
         }
+        if (powerChoices.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("Power choices cannot contain null values.");
+        }
         if (selectedPowerIndex < 0 || selectedPowerIndex >= powerChoices.size()) {
             throw new IllegalArgumentException("Selected power index is out of range.");
         }
@@ -44,16 +48,20 @@ public class NanoRosterService {
             throw new IllegalArgumentException("Nano already exists in the Nano Book.");
         }
 
-        NanoPower selectedPower = powerChoices.get(selectedPowerIndex);
-        nanoBook.put(nano.getId(), new NanoState(nano, powerChoices, selectedPower));
+        var selectedPower = powerChoices.get(selectedPowerIndex);
+        var availablePowers = List.copyOf(powerChoices);
+        var uniquePowerIds = availablePowers.stream().map(NanoPower::getId).distinct().count();
+        if (uniquePowerIds != availablePowers.size()) {
+            throw new IllegalArgumentException("Power ids must be unique per Nano.");
+        }
+        var powersById = availablePowers.stream()
+                .collect(Collectors.toUnmodifiableMap(NanoPower::getId, power -> power));
+        nanoBook.put(nano.getId(), new NanoState(nano, availablePowers, powersById, selectedPower));
     }
 
     public Map<String, Nano> getNanoBook() {
-        Map<String, Nano> result = new HashMap<>();
-        for (Map.Entry<String, NanoState> entry : nanoBook.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().nano());
-        }
-        return Map.copyOf(result);
+        return nanoBook.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().nano()));
     }
 
     public List<String> getEquippedNanoIds() {
@@ -159,16 +167,14 @@ public class NanoRosterService {
         if (!atNanoStation) {
             throw new IllegalStateException("Power swapping requires a Nano Station.");
         }
+        Objects.requireNonNull(powerId, "powerId");
 
-        NanoState state = requireNanoExists(nanoId);
-        for (NanoPower power : state.powerChoices()) {
-            if (power.getId().equals(powerId)) {
-                state.selectPower(power);
-                return;
-            }
+        var state = requireNanoExists(nanoId);
+        var selectedPower = state.powersById().get(powerId);
+        if (selectedPower == null) {
+            throw new IllegalArgumentException("Power does not belong to this Nano.");
         }
-
-        throw new IllegalArgumentException("Power does not belong to this Nano.");
+        state.selectPower(selectedPower);
     }
 
     public void applyGumball(String nanoId, NanoEffectType gumballType) {
@@ -197,7 +203,8 @@ public class NanoRosterService {
     }
 
     private NanoState requireNanoExists(String nanoId) {
-        NanoState state = nanoBook.get(nanoId);
+        Objects.requireNonNull(nanoId, "nanoId");
+        var state = nanoBook.get(nanoId);
         if (state == null) {
             throw new IllegalArgumentException("Unknown Nano id: " + nanoId);
         }
@@ -207,12 +214,17 @@ public class NanoRosterService {
     private static final class NanoState {
         private final Nano nano;
         private final List<NanoPower> powerChoices;
+        private final Map<String, NanoPower> powersById;
         private NanoPower selectedPower;
         private Instant gumballExpiry;
 
-        private NanoState(Nano nano, List<NanoPower> powerChoices, NanoPower selectedPower) {
+        private NanoState(Nano nano,
+                          List<NanoPower> powerChoices,
+                          Map<String, NanoPower> powersById,
+                          NanoPower selectedPower) {
             this.nano = nano;
-            this.powerChoices = List.copyOf(powerChoices);
+            this.powerChoices = powerChoices;
+            this.powersById = powersById;
             this.selectedPower = selectedPower;
         }
 
@@ -222,6 +234,10 @@ public class NanoRosterService {
 
         private List<NanoPower> powerChoices() {
             return powerChoices;
+        }
+
+        private Map<String, NanoPower> powersById() {
+            return powersById;
         }
 
         private NanoPower selectedPower() {

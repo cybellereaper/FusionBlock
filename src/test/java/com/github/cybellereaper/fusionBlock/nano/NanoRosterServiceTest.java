@@ -103,6 +103,33 @@ class NanoRosterServiceTest {
                 service.getCombatIndicatorAgainst(NanoEffectType.ADAPTIUM, NanoEffectType.BLASTONS));
     }
 
+    @Test
+    void acquireNanoRejectsDuplicatePowerIds() {
+        NanoRosterService service = new NanoRosterService();
+
+        assertThrows(IllegalArgumentException.class, () -> service.acquireNano(nano("n1", NanoEffectType.ADAPTIUM), List.of(
+                passive("same", 1.0),
+                triggered("same", 20.0),
+                passive("p3", 2.0)
+        ), 0));
+    }
+
+    @Test
+    void swapPowerRejectsUnknownPowerId() {
+        NanoRosterService service = new NanoRosterService();
+        acquire(service, nano("n1", NanoEffectType.ADAPTIUM));
+
+        assertThrows(IllegalArgumentException.class, () -> service.swapPowerAtNanoStation("n1", "unknown", true));
+    }
+
+    @Test
+    void nullIdsAreRejectedEarly() {
+        NanoRosterService service = new NanoRosterService();
+
+        assertThrows(NullPointerException.class, () -> service.equipNano(null));
+        assertThrows(NullPointerException.class, () -> service.swapPowerAtNanoStation("n1", null, true));
+    }
+
     private static void acquire(NanoRosterService service, Nano nano) {
         service.acquireNano(nano, List.of(
                 passive("p1", 1.0),
