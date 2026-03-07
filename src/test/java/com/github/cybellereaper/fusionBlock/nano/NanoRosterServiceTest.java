@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 
 class NanoRosterServiceTest {
@@ -107,11 +109,26 @@ class NanoRosterServiceTest {
     void acquireNanoRejectsDuplicatePowerIds() {
         NanoRosterService service = new NanoRosterService();
 
-        assertThrows(IllegalArgumentException.class, () -> service.acquireNano(nano("n1", NanoEffectType.ADAPTIUM), List.of(
+        assertThatThrownBy(() -> service.acquireNano(nano("n1", NanoEffectType.ADAPTIUM), List.of(
                 passive("same", 1.0),
                 triggered("same", 20.0),
                 passive("p3", 2.0)
-        ), 0));
+        ), 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Power ids must be unique");
+    }
+
+    @Test
+    void acquireNanoRejectsBlankPowerIds() {
+        NanoRosterService service = new NanoRosterService();
+
+        assertThatThrownBy(() -> service.acquireNano(nano("n1", NanoEffectType.ADAPTIUM), List.of(
+                passive(" ", 1.0),
+                triggered("p2", 20.0),
+                passive("p3", 2.0)
+        ), 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non-blank");
     }
 
     @Test
@@ -123,11 +140,23 @@ class NanoRosterServiceTest {
     }
 
     @Test
-    void nullIdsAreRejectedEarly() {
+    void blankOrNullIdsAreRejectedEarly() {
         NanoRosterService service = new NanoRosterService();
 
-        assertThrows(NullPointerException.class, () -> service.equipNano(null));
-        assertThrows(NullPointerException.class, () -> service.swapPowerAtNanoStation("n1", null, true));
+        assertThatThrownBy(() -> service.equipNano(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.equipNano(" ")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.swapPowerAtNanoStation("n1", null, true)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void nanoBookViewIsImmutable() {
+        NanoRosterService service = new NanoRosterService();
+        acquire(service, nano("n1", NanoEffectType.ADAPTIUM));
+
+        var view = service.getNanoBook();
+        assertThat(view).containsKey("n1");
+        assertThatThrownBy(() -> view.put("n2", nano("n2", NanoEffectType.BLASTONS)))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private static void acquire(NanoRosterService service, Nano nano) {

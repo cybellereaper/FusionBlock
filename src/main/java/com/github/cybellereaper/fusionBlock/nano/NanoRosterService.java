@@ -1,5 +1,9 @@
 package com.github.cybellereaper.fusionBlock.nano;
 
+import com.google.common.collect.ImmutableMap;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,30 +37,25 @@ public class NanoRosterService {
     }
 
     public void acquireNano(Nano nano, List<NanoPower> powerChoices, int selectedPowerIndex) {
-        Objects.requireNonNull(nano, "nano");
-        Objects.requireNonNull(powerChoices, "powerChoices");
-        if (powerChoices.size() != 3) {
-            throw new IllegalArgumentException("A Nano must present exactly three powers on acquisition.");
-        }
-        if (powerChoices.stream().anyMatch(Objects::isNull)) {
-            throw new IllegalArgumentException("Power choices cannot contain null values.");
-        }
-        if (selectedPowerIndex < 0 || selectedPowerIndex >= powerChoices.size()) {
-            throw new IllegalArgumentException("Selected power index is out of range.");
-        }
-        if (nanoBook.containsKey(nano.getId())) {
-            throw new IllegalArgumentException("Nano already exists in the Nano Book.");
-        }
+        Validate.notNull(nano, "nano must not be null");
+        Validate.notNull(powerChoices, "powerChoices must not be null");
+        Validate.isTrue(powerChoices.size() == 3, "A Nano must present exactly three powers on acquisition.");
+        Validate.isTrue(selectedPowerIndex >= 0 && selectedPowerIndex < powerChoices.size(),
+                "Selected power index is out of range.");
+        Validate.isTrue(!nanoBook.containsKey(nano.getId()), "Nano already exists in the Nano Book.");
 
-        var selectedPower = powerChoices.get(selectedPowerIndex);
         var availablePowers = List.copyOf(powerChoices);
+        Validate.isTrue(availablePowers.stream().noneMatch(Objects::isNull), "Power choices cannot contain null values.");
+        Validate.isTrue(availablePowers.stream().map(NanoPower::getId).allMatch(StringUtils::isNotBlank),
+                "Power ids must be non-blank.");
+
         var uniquePowerIds = availablePowers.stream().map(NanoPower::getId).distinct().count();
-        if (uniquePowerIds != availablePowers.size()) {
-            throw new IllegalArgumentException("Power ids must be unique per Nano.");
-        }
+        Validate.isTrue(uniquePowerIds == availablePowers.size(), "Power ids must be unique per Nano.");
+
         var powersById = availablePowers.stream()
-                .collect(Collectors.toUnmodifiableMap(NanoPower::getId, power -> power));
-        nanoBook.put(nano.getId(), new NanoState(nano, availablePowers, powersById, selectedPower));
+                .collect(ImmutableMap.toImmutableMap(NanoPower::getId, power -> power));
+        var selectedPower = availablePowers.get(selectedPowerIndex);
+        nanoBook.put(nano.getId(), new NanoState(nano, powersById, selectedPower));
     }
 
     public Map<String, Nano> getNanoBook() {
@@ -167,8 +166,8 @@ public class NanoRosterService {
         if (!atNanoStation) {
             throw new IllegalStateException("Power swapping requires a Nano Station.");
         }
-        Objects.requireNonNull(powerId, "powerId");
 
+        Validate.notBlank(powerId, "powerId must not be blank");
         var state = requireNanoExists(nanoId);
         var selectedPower = state.powersById().get(powerId);
         if (selectedPower == null) {
@@ -203,7 +202,7 @@ public class NanoRosterService {
     }
 
     private NanoState requireNanoExists(String nanoId) {
-        Objects.requireNonNull(nanoId, "nanoId");
+        Validate.notBlank(nanoId, "nanoId must not be blank");
         var state = nanoBook.get(nanoId);
         if (state == null) {
             throw new IllegalArgumentException("Unknown Nano id: " + nanoId);
@@ -213,17 +212,14 @@ public class NanoRosterService {
 
     private static final class NanoState {
         private final Nano nano;
-        private final List<NanoPower> powerChoices;
-        private final Map<String, NanoPower> powersById;
+        private final ImmutableMap<String, NanoPower> powersById;
         private NanoPower selectedPower;
         private Instant gumballExpiry;
 
         private NanoState(Nano nano,
-                          List<NanoPower> powerChoices,
-                          Map<String, NanoPower> powersById,
+                          ImmutableMap<String, NanoPower> powersById,
                           NanoPower selectedPower) {
             this.nano = nano;
-            this.powerChoices = powerChoices;
             this.powersById = powersById;
             this.selectedPower = selectedPower;
         }
@@ -232,11 +228,8 @@ public class NanoRosterService {
             return nano;
         }
 
-        private List<NanoPower> powerChoices() {
-            return powerChoices;
-        }
 
-        private Map<String, NanoPower> powersById() {
+        private ImmutableMap<String, NanoPower> powersById() {
             return powersById;
         }
 
