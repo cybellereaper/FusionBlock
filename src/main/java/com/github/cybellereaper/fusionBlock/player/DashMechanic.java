@@ -22,6 +22,8 @@ public class DashMechanic implements Listener {
     private final long dashCooldown = 5_000L;
     private final LongSupplier timeSource;
 
+
+
     public DashMechanic(JavaPlugin javaPlugin) {
         this(javaPlugin, Clock.systemUTC()::millis);
     }

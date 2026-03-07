@@ -3,12 +3,14 @@ package com.github.cybellereaper.fusionBlock.nano;
 import com.ticxo.modelengine.api.ModelEngineAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -19,6 +21,10 @@ public class TestNanoFunc implements Listener {
     private final JavaPlugin javaPlugin;
 
     private static final Map<Player, ArmorStand> TESTING_NANO_MANAGER = new HashMap<>();
+
+    // I want to track what slot they hit
+
+    private static final Map<Player, Integer> TESTING_PLAYER_SLOT = new HashMap<>();
 
     public TestNanoFunc(JavaPlugin javaPlugin) {
         this.javaPlugin = javaPlugin;
@@ -31,28 +37,45 @@ public class TestNanoFunc implements Listener {
     }
 
     @EventHandler
+    public void testOutMethod(PlayerSwapHandItemsEvent event) {
+        Player player = event.getPlayer();
+       
+        int mainHandSlot = player.getInventory().getHeldItemSlot();
+        int offHandSlot = 40; // Off-hand is always slot 40
+        int newSlot = (mainHandSlot == offHandSlot) ? 0 : offHandSlot; // Toggle between main hand and off-hand
+        TESTING_PLAYER_SLOT.put(player, newSlot);
+    }
+
+    @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        ArmorStand armorStand = event.getPlayer().getWorld().spawn(event.getPlayer().getLocation(), ArmorStand.class, stand -> {
+        Player player = event.getPlayer();
+        World world = player.getWorld();
+        Location location = player.getLocation();
+
+        ArmorStand armorStand = world.spawn(location, ArmorStand.class, stand -> {
             stand.setGravity(false);
+            stand.setBasePlate(false);
+            stand.setSmall(true);
+            stand.setInvulnerable(true);
         });
 
-        try {
-            var blueprint = ModelEngineAPI.getBlueprint("numbuh_three");
-            var createActiveModel = ModelEngineAPI.createActiveModel(blueprint);
-            var modeledEntity = ModelEngineAPI.getOrCreateModeledEntity(armorStand);
-            modeledEntity.addModel(createActiveModel, true);
+        // try {
+        //     var blueprint = ModelEngineAPI.getBlueprint("numbuh_three");
+        //     var createActiveModel = ModelEngineAPI.createActiveModel(blueprint);
+        //     var modeledEntity = ModelEngineAPI.getOrCreateModeledEntity(armorStand);
+        //     modeledEntity.addModel(createActiveModel, true);
 
-            modeledEntity.setBaseEntityVisible(false);
-            createActiveModel.setScale(0.4);
-            createActiveModel.setModeledEntity(modeledEntity);
-            createActiveModel.setAutoRendererInitialization(true);
-            createActiveModel.generateModel();
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
+        //     modeledEntity.setBaseEntityVisible(false);
+        //     createActiveModel.setScale(0.4);
+        //     createActiveModel.setModeledEntity(modeledEntity);
+        //     createActiveModel.setAutoRendererInitialization(true);
+        //     createActiveModel.generateModel();
+        // } catch (Throwable e) {
+        //     e.printStackTrace();
+        // }
 
-        TESTING_NANO_MANAGER.putIfAbsent(event.getPlayer(), armorStand);
-        startAnimation(event.getPlayer());
+        TESTING_NANO_MANAGER.putIfAbsent(player, armorStand);
+        startAnimation(player);
     }
 
     @EventHandler
